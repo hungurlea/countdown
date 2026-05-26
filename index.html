@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📅 日期倒數追蹤器</title>
+  <style>
+    /* 全域基本樣式 */
+    :root {
+      --primary-color: #4a90e2;
+      --danger-color: #ff5e5e;
+      --background-color: #f5f7fa;
+      --card-color: #ffffff;
+      --text-color: #333333;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--background-color);
+      color: var(--text-color);
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+
+    /* 輸入表單區塊樣式 */
+    .input-section {
+      background: var(--card-color);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      margin-bottom: 40px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .form-control {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: bold;
+      color: #7f8c8d;
+    }
+
+    input {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--primary-color);
+    }
+
+    button.btn-add {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0 25px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: bold;
+      align-self: flex-end;
+      height: 42px;
+      transition: background 0.2s;
+    }
+
+    button.btn-add:hover {
+      background-color: #357abd;
+    }
+
+    /* 倒數卡片網格 (RWD 核心) */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    /* 單張卡片樣式 */
+    .card {
+      background: var(--card-color);
+      padding: 25px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-top: 5px solid var(--primary-color);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 已過期日子的卡片外觀變暗 */
+    .card.expired {
+      border-top-color: #95a5a6;
+      opacity: 0.8;
+    }
+
+    .card h3 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #34495e;
+      word-break: break-all;
+    }
+
+    .countdown-number {
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--primary-color);
+      margin-bottom: 5px;
+    }
+
+    .card.expired .countdown-number {
+      color: #7f8c8d;
+      font-size: 28px;
+    }
+
+    .countdown-unit {
+      font-size: 14px;
+      color: #95a5a6;
+      margin-bottom: 15px;
+    }
+
+    .target-date {
+      font-size: 12px;
+      color: #bdc3c7;
+    }
+
+    /* 刪除按鈕 */
+    .btn-delete {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: #bdc3c7;
+      font-size: 18px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .btn-delete:hover {
+      color: var(--danger-color);
+    }
+
+    /* 手機板微調 */
+    @media (max-width: 500px) {
+      .form-control {
+        min-width: 100%;
+      }
+      button.btn-add {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>📅 日期倒數追蹤器</h1>
+
+    <div class="input-section">
+      <form id="countdown-form" class="form-group">
+        <div class="form-control">
+          <label for="event-name">事件名稱</label>
+          <input type="text" id="event-name" placeholder="例如：跨年、朋友生日、檢定考試" required>
+        </div>
+        <div class="form-control">
+          <label for="event-date">目標日期</label>
+          <input type="date" id="event-date" required>
+        </div>
+        <button type="submit" class="btn-add">新增倒數</button>
+      </form>
+    </div>
+
+    <div id="cards-grid" class="cards-grid">
+      </div>
+  </div>
+
+  <script>
+    // 取得 DOM 元素
+    const countdownForm = document.getElementById('countdown-form');
+    const eventNameInput = document.getElementById('event-name');
+    const eventDateInput = document.getElementById('event-date');
+    const cardsGrid = document.getElementById('cards-grid');
+
+    // 從 localStorage 讀取已儲存的事件，若無則初始化為空陣列
+    let countdownEvents = JSON.parse(localStorage.getItem('countdownEvents')) || [];
+
+    // 計算剩餘天數的函式
+    function calculateDaysLeft(targetDateStr) {
+      const today = new Date();
+      // 將時分秒歸零，只比較純日期
+      today.setHours(0, 0, 0, 0);
+      
+      const targetDate = new Date(targetDateStr);
+      targetDate.setHours(0, 0, 0, 0);
+
+      // 計算時間差（毫秒）
+      const diffTime = targetDate - today;
+      // 換算成天數
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    }
+
+    // 渲染卡片到畫面上
+    function renderCards() {
+      // 先清空目前的畫面
+      cardsGrid.innerHTML = '';
+
+      if (countdownEvents.length === 0) {
+        cardsGrid.innerHTML = `<p style="text-align:center; color:#95a5a6; grid-column: 1/-1; padding: 40px 0;">目前沒有倒數事件，快在上方新增一個吧！</p>`;
+        return;
+      }
+
+      // 依日期排序（由近到遠）
+      countdownEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 產生每張卡片的 HTML
+      countdownEvents.forEach(event => {
+        const daysLeft = calculateDaysLeft(event.date);
+        let displayText = '';
+        let isExpired = false;
+
+        if (daysLeft > 0) {
+          displayText = `${daysLeft}`;
+        } else if (daysLeft === 0) {
+          displayText = '就是今天！';
+        } else {
+          displayText = `已過期 ${Math.abs(daysLeft)} 天`;
+          isExpired = true;
+        }
+
+        const cardHtml = `
+          <div class="card ${isExpired ? 'expired' : ''}">
+            <button class="btn-delete" onclick="deleteEvent('${event.id}')" title="刪除">×</button>
+            <h3>${escapeHtml(event.name)}</h3>
+            <div class="countdown-number">${displayText}</div>
+            <div class="countdown-unit">${daysLeft > 0 ? 'DAYS LEFT' : ''}</div>
+            <div class="target-date">目標日: ${event.date}</div>
+          </div>
+        `;
+        cardsGrid.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    // 新增事件
+    countdownForm.addEventListener('submit', function(e) {
+      e.preventDefault(); // 防止表單重整網頁
+
+      const newEvent = {
+        id: Date.now().toString(), // 用時間戳記當作不重複的 ID
+        name: eventNameInput.value,
+        date: eventDateInput.value
+      };
+
+      // 存入陣列、更新 localStorage、重新渲染
+      countdownEvents.push(newEvent);
+      localStorage.setItem('countdownEvents', JSON.stringify(countdownEvents));
+      renderCards();
+
+      // 清空輸入框
+      eventNameInput.value = '';
+      eventDateInput.value = '';
+    });
+
+    // 刪除事件 (透過 ID 篩選)
+    function deleteEvent(id) {
+      countdownEvents = countdownEvents.filter(event => event.id !== id);
+      localStorage.setItem('countdownEvents', JSON.stringify(countdownEvents));
+      renderCards();
+    }
+
+    // 防止 XSS 攻擊的字串處理函式
+    function escapeHtml(string) {
+      return String(string).replace(/[&<>"']/g, function (s) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[s];
+      });
+    }
+
+    // 網頁開啟時，自動執行第一次渲染
+    renderCards();
+  </script>
+</body>
+</html>
